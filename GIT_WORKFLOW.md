@@ -26,6 +26,7 @@ This project follows the Git Flow workflow for development. Below are the guidel
 - Branch from: develop
 - Merge back into: develop
 - Naming convention: feature/[descriptive-name]
+
 - Example: feature/user-authentication
 - Must be up-to-date with develop before creating PR
 - Delete after merge
@@ -91,6 +92,7 @@ This project follows the Git Flow workflow for development. Below are the guidel
 2. Make your changes, commit with appropriate message format:
    ```
    git commit -m "feat(component): add new button component"
+
    ```
 
 3. Push your feature branch:
