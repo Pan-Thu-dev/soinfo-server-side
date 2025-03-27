@@ -1,16 +1,12 @@
----
-description: 
-globs: 
-alwaysApply: true
----
----
-description: Gitflow Workflow Rules. These rules should be applied when performing git operations.
----
-# Gitflow Workflow Rules
+# Git Flow Workflow
 
-## Main Branches
+This project follows the Git Flow workflow for development. Below are the guidelines for working with this repository.
 
-### main (or master)
+## Branch Structure
+
+### Main Branches
+
+#### `main` (or `master`)
 - Contains production-ready code
 - Never commit directly to main
 - Only accepts merges from:
@@ -18,40 +14,40 @@ description: Gitflow Workflow Rules. These rules should be applied when performi
   - release/* branches
 - Must be tagged with version number after each merge
 
-### develop
+#### `develop`
 - Main development branch
 - Contains latest delivered development changes
 - Source branch for feature branches
 - Never commit directly to develop
 
-## Supporting Branches
+### Supporting Branches
 
-### feature/*
+#### `feature/*`
 - Branch from: develop
 - Merge back into: develop
-- Naming convention: feature/[issue-id]-descriptive-name
-- Example: feature/123-user-authentication
+- Naming convention: feature/[descriptive-name]
+- Example: feature/discord-profile-api
 - Must be up-to-date with develop before creating PR
 - Delete after merge
 
-### release/*
+#### `release/*`
 - Branch from: develop
 - Merge back into: 
   - main
   - develop
 - Naming convention: release/vX.Y.Z
-- Example: release/v1.2.0
+- Example: release/v1.0.0
 - Only bug fixes, documentation, and release-oriented tasks
 - No new features
 - Delete after merge
 
-### hotfix/*
+#### `hotfix/*`
 - Branch from: main
 - Merge back into:
   - main
   - develop
 - Naming convention: hotfix/vX.Y.Z
-- Example: hotfix/v1.2.1
+- Example: hotfix/v1.0.1
 - Only for urgent production fixes
 - Delete after merge
 
@@ -83,34 +79,27 @@ description: Gitflow Workflow Rules. These rules should be applied when performi
 5. Branch must be up to date before merging
 6. Delete branch after merge
 
-## Branch Protection Rules
+## Development Workflow
 
-### main & develop
-- Require pull request reviews
-- Require status checks to pass
-- Require branches to be up to date
-- Include administrators in restrictions
-- No force pushes
-- No deletions
+1. Start a new feature:
+   ```
+   git checkout develop
+   git pull
+   git checkout -b feature/your-feature-name
+   ```
 
-## Release Process
+2. Make your changes, commit with appropriate message format:
+   ```
+   git commit -m "feat(api): implement Discord profile fetching"
+   ```
 
-1. Create release branch from develop
-2. Bump version numbers
-3. Fix any release-specific issues
-4. Create PR to main
-5. After merge to main:
-   - Tag release
-   - Merge back to develop
-   - Delete release branch
+3. Push your feature branch:
+   ```
+   git push -u origin feature/your-feature-name
+   ```
 
-## Hotfix Process
+4. Create a Pull Request to merge into develop
 
-1. Create hotfix branch from main
-2. Fix the issue
-3. Bump patch version
-4. Create PR to main
-5. After merge to main:
-   - Tag release
-   - Merge back to develop
-   - Delete hotfix branch 
+5. After approval and CI checks pass, merge into develop
+
+6. Delete the feature branch after merging 
