@@ -1,51 +1,74 @@
 import { Request, Response, NextFunction } from 'express';
 import { DiscordService } from '../services/discordService';
-import { AppError } from '../utils/appError';
-
-// Initialize Discord service
-const discordService = new DiscordService();
+import { DiscordProfileResponse } from '../types/discord';
 
 /**
- * @desc    Get Discord profile information by URL
- * @route   POST /api/profile
+ * @desc    Get Discord profile information by username
+ * @route   GET /api/profile/discord
  * @access  Public
  */
 export const getDiscordProfile = async (
-  req: Request,
-  res: Response,
+  req: Request, 
+  res: Response, 
   next: NextFunction
 ) => {
   try {
-    const { profileUrl } = req.body;
-
-    if (!profileUrl || typeof profileUrl !== 'string') {
-      return next(new AppError('Profile URL is required', 400));
-    }
-
-    // Validate URL format
-    if (!discordService.isValidDiscordUrl(profileUrl)) {
-      return next(new AppError('Invalid Discord profile URL', 400));
-    }
-
-    // Fetch user data from Discord
-    const userData = await discordService.fetchUserData(profileUrl);
+    console.log('=== Discord Profile Request ===');
+    console.log('Query params:', req.query);
     
-    if (!userData) {
-      return next(new AppError('User not found', 404));
+    // Extract username from query parameters
+    const { username } = req.query;
+
+    // Validate username parameter
+    if (!username || typeof username !== 'string') {
+      console.log('❌ Invalid username parameter:', username);
+      return res.status(400).json({
+        status: 'error',
+        message: 'A valid Discord username is required',
+      });
     }
 
-    // Add timestamp for client-side caching
-    const responseData = {
-      ...userData,
-      timestamp: Date.now()
-    };
+    console.log(`🔍 Searching for Discord user: "${username}"`);
 
-    res.status(200).json(responseData);
+    // Create Discord service instance
+    const discordService = new DiscordService();
+    
+    // Fetch user data by username
+    try {
+      const userData = await discordService.fetchUserDataByUsername(username);
+
+      if (!userData) {
+        console.log(`❌ User "${username}" not found`);
+        return res.status(404).json({
+          status: 'error',
+          message: `Discord user with username '${username}' not found`,
+          debug: {
+            tip: "Make sure the Discord bot is in a server with the user you're looking for",
+            checked: "username" // We checked by username
+          }
+        });
+      }
+
+      console.log(`✅ User found: ${userData.username}`);
+      
+      // Return the response with user data
+      const response: DiscordProfileResponse = {
+        status: 'success',
+        data: userData,
+      };
+
+      return res.status(200).json(response);
+    } catch (serviceError) {
+      console.error('❌ Discord service error:', serviceError);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Error connecting to Discord API',
+        error: serviceError instanceof Error ? serviceError.message : 'Unknown error'
+      });
+    }
   } catch (error) {
-    // Check if it's a rate limit error
-    if (error instanceof Error && error.message.includes('rate limit')) {
-      return next(new AppError('Discord API rate limit reached. Please try again later.', 429));
-    }
+    console.error('❌ Unhandled error in controller:', error);
+
     next(error);
   }
 }; 
