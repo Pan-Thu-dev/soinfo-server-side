@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { errorHandler } from './middleware/errorHandler';
+import { rateLimit } from './middleware/rateLimit';
 import profileRoutes from './routes/profileRoutes';
 import guildRoutes from './routes/guildRoutes';
 import userRoutes from './routes/userRoutes';
@@ -14,7 +15,10 @@ dotenv.config();
 
 // Initialize the Express application
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.port;
+
+// Initialize Discord service
+const discordService = new DiscordService();
 
 // Middleware setup
 app.use(helmet({
@@ -66,13 +70,39 @@ app.use('/api/profile', profileRoutes); // Profile-related routes
 app.use('/api/guild', guildRoutes);     // Guild-related routes
 app.use('/api/user', userRoutes);       // User-related routes
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: Date.now() });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    status: 'error',
+    message: `Route ${req.originalUrl} not found`
+  });
+});
+
 // Error handling middleware
 app.use(errorHandler);
 
 // Start the server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`CORS is enabled for origins:`, config.corsOrigins);
 });
+
+// Handle graceful shutdown
+const shutdown = async () => {
+  console.log('Shutting down server...');
+  await discordService.shutdown();
+  server.close();
+  console.log('Server shut down successfully');
+  process.exit(0);
+};
+
+// Handle termination signals
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 export default app; 
