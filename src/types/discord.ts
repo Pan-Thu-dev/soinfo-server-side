@@ -11,8 +11,8 @@ export interface DiscordActivity {
  */
 export interface DiscordUserData {
   username: string;
+  displayName: string;
   avatarUrl: string | null;
-  aboutMe: string | null;
   status: string;
   activity: DiscordActivity | null;
   timestamp?: number;
