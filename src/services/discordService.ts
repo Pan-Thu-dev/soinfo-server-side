@@ -1,5 +1,5 @@
 import { Client, GatewayIntentBits, GuildMember, REST, Routes, DiscordAPIError } from 'discord.js';
-import { DiscordUserData } from '../types/discord-types';
+import { DiscordUserData } from '../types/discordTypes';
 import config from '../config';
 import { getDiscordClient } from './discordClient';
 
@@ -11,6 +11,15 @@ export class DiscordService {
 
   constructor() {
     this.rest = new REST({ version: '10' }).setToken(config.discord.botToken || '');
+  }
+
+  /**
+   * Gracefully shutdown the service
+   */
+  public async shutdown(): Promise<void> {
+    console.log('Shutting down Discord service...');
+    // Nothing specific to clean up in this service
+    return Promise.resolve();
   }
 
   /**
