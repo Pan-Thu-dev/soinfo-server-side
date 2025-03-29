@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { DiscordService } from '../services/discordService';
-import { DiscordProfileResponse } from '../types/discord-types';
+import { DiscordProfileResponse } from '../types/discordTypes';
 
 /**
  * @desc    Get Discord profile information by username
