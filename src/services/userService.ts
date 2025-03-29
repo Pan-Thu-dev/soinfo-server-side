@@ -1,5 +1,6 @@
 import { Client, GatewayIntentBits } from 'discord.js';
 import config from '../config';
+import { getDiscordClient } from './discordClient';
 
 /**
  * Interface for the user data structure
@@ -25,17 +26,8 @@ export interface UserListResponse {
  * Service for fetching Discord user data
  */
 export class UserService {
-  private client: Client;
-
   constructor() {
-    // Initialize Discord client with necessary intents
-    this.client = new Client({
-      intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildPresences,
-      ]
-    });
+    // No client initialization needed, using shared client
   }
 
   /**
@@ -50,22 +42,13 @@ export class UserService {
         throw new Error('Discord bot token is not configured');
       }
       
-      // Login to Discord
-      await this.client.login(config.discord.botToken);
-      
-      // Wait for client to be ready
-      await new Promise<void>((resolve) => {
-        if (this.client.isReady()) {
-          resolve();
-        } else {
-          this.client.once('ready', () => resolve());
-        }
-      });
+      // Get the shared client instance
+      const client = await getDiscordClient();
 
       console.log('Bot is ready, fetching users...');
       
       // Fetch guilds the bot has access to
-      const guilds = await this.client.guilds.fetch();
+      const guilds = await client.guilds.fetch();
       
       const allUsers: UserData[] = [];
       
@@ -102,9 +85,6 @@ export class UserService {
     } catch (error) {
       console.error('Error fetching user list:', error);
       throw error;
-    } finally {
-      // Always destroy the client to avoid memory leaks
-      this.client.destroy();
     }
   }
 } 

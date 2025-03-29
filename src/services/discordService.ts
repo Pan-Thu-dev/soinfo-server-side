@@ -1,25 +1,15 @@
 import { Client, GatewayIntentBits, GuildMember, REST, Routes } from 'discord.js';
 import { DiscordUserData } from '../types/discord';
 import config from '../config';
+import { getDiscordClient } from './discordClient';
 
 /**
  * Service for fetching Discord user data
  */
 export class DiscordService {
-  private client: Client;
   private rest: REST;
 
   constructor() {
-    // Initialize Discord client with necessary intents
-    this.client = new Client({
-      intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildPresences,
-        GatewayIntentBits.GuildMessages,
-      ]
-    });
-
     this.rest = new REST({ version: '10' }).setToken(config.discord.botToken || '');
   }
 
@@ -35,32 +25,23 @@ export class DiscordService {
     }
 
     try {
-      // Login to Discord
       if (!config.discord.botToken) {
         throw new Error('Discord bot token is not configured');
       }
       
-      await this.client.login(config.discord.botToken);
-      
-      // Wait for client to be ready
-      await new Promise<void>((resolve) => {
-        if (this.client.isReady()) {
-          resolve();
-        } else {
-          this.client.once('ready', () => resolve());
-        }
-      });
+      // Get the shared client instance
+      const client = await getDiscordClient();
 
       console.log('Discord client is ready, searching for user:', username);
 
       // Find the user by username
-      const member = await this.findUserByUsername(username);
+      const member = await this.findUserByUsername(username, client);
       
       if (!member) {
         console.log('User not found via guild search, attempting direct search');
         // Try a direct user search as fallback
         try {
-          const user = await this.searchUserDirectly(username);
+          const user = await this.searchUserDirectly(username, client);
           if (user) {
             console.log('Found user via direct search:', user.username);
             // Return limited data since we don't have guild context
@@ -94,20 +75,18 @@ export class DiscordService {
     } catch (error) {
       console.error('Error fetching Discord user data:', error);
       throw error;
-    } finally {
-      // Always destroy the client to avoid memory leaks
-      this.client.destroy();
     }
   }
 
   /**
    * Find a user by username across all available guilds
    * @param username Username to search for
+   * @param client Discord client instance
    * @returns GuildMember object or null if not found
    */
-  private async findUserByUsername(username: string): Promise<GuildMember | null> {
+  private async findUserByUsername(username: string, client: Client): Promise<GuildMember | null> {
     try {
-      const guilds = await this.client.guilds.fetch();
+      const guilds = await client.guilds.fetch();
       console.log(`Bot has access to ${guilds.size} guilds`);
       
       if (guilds.size === 0) {
@@ -198,12 +177,13 @@ export class DiscordService {
    * Search for a user directly using Discord API
    * This is a fallback method when guild search fails
    * @param username Username to search
+   * @param client Discord client instance
    * @returns User object or null
    */
-  private async searchUserDirectly(username: string): Promise<any | null> {
+  private async searchUserDirectly(username: string, client: Client): Promise<any | null> {
     try {
       // Get the bot's user id first
-      const botUser = this.client.user;
+      const botUser = client.user;
       if (!botUser) {
         throw new Error("Bot user not available");
       }
@@ -214,7 +194,7 @@ export class DiscordService {
       if (isSnowflake) {
         try {
           // Try to fetch by ID
-          const user = await this.client.users.fetch(username);
+          const user = await client.users.fetch(username);
           return {
             id: user.id,
             username: user.username,

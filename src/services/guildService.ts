@@ -1,5 +1,6 @@
 import { Client, GatewayIntentBits } from 'discord.js';
 import config from '../config';
+import { getDiscordClient } from './discordClient';
 
 /**
  * Interface for the guild data structure
@@ -24,16 +25,8 @@ export interface GuildListResponse {
  * Service for fetching Discord guild data
  */
 export class GuildService {
-  private client: Client;
-
   constructor() {
-    // Initialize Discord client with necessary intents
-    this.client = new Client({
-      intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-      ]
-    });
+    // No client initialization needed, using shared client
   }
 
   /**
@@ -48,22 +41,13 @@ export class GuildService {
         throw new Error('Discord bot token is not configured');
       }
       
-      // Login to Discord
-      await this.client.login(config.discord.botToken);
-      
-      // Wait for client to be ready
-      await new Promise<void>((resolve) => {
-        if (this.client.isReady()) {
-          resolve();
-        } else {
-          this.client.once('ready', () => resolve());
-        }
-      });
+      // Get the shared client instance
+      const client = await getDiscordClient();
 
       console.log('Bot is ready, fetching guilds...');
       
       // Fetch guilds the bot has access to
-      const guilds = await this.client.guilds.fetch();
+      const guilds = await client.guilds.fetch();
       
       // Map guild data to a consistent format
       const guildList = await Promise.all(
@@ -95,9 +79,6 @@ export class GuildService {
     } catch (error) {
       console.error('Error fetching guild list:', error);
       throw error;
-    } finally {
-      // Always destroy the client to avoid memory leaks
-      this.client.destroy();
     }
   }
 } 
