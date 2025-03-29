@@ -1,5 +1,5 @@
 import { Client, GatewayIntentBits, GuildMember, REST, Routes, DiscordAPIError } from 'discord.js';
-import { DiscordUserData } from '../types/discord-types';
+import { DiscordUserData } from '../types/discordTypes';
 import config from '../config';
 import { getDiscordClient } from './discordClient';
 
