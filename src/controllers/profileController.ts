@@ -78,6 +78,7 @@ export const getDiscordProfile = async (
     }
   } catch (error) {
     console.error('❌ Unhandled error in controller:', error);
+
     next(error);
   }
 }; 
