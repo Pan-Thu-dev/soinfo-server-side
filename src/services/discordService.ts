@@ -1,5 +1,5 @@
-import { Client, GatewayIntentBits, GuildMember, REST, Routes } from 'discord.js';
-import { DiscordUserData } from '../types/discord';
+import { Client, GatewayIntentBits, GuildMember, REST, Routes, DiscordAPIError } from 'discord.js';
+import { DiscordUserData } from '../types/discord-types';
 import config from '../config';
 import { getDiscordClient } from './discordClient';
 
@@ -55,6 +55,9 @@ export class DiscordService {
           }
         } catch (err) {
           console.error('Direct user search failed:', err);
+          
+          // Check if the error is a rate limit
+          this.handleRateLimit(err, 'direct search');
         }
         return null;
       }
@@ -74,6 +77,10 @@ export class DiscordService {
       return userData;
     } catch (error) {
       console.error('Error fetching Discord user data:', error);
+      
+      // Check for rate limiting
+      this.handleRateLimit(error, 'fetching user data');
+      
       throw error;
     }
   }
@@ -104,7 +111,7 @@ export class DiscordService {
           // Check if the bot has permission to view guild members
           if (!guild.members.me?.permissions.has('ViewChannel') ||
               !guild.members.me?.permissions.has('ReadMessageHistory')) {
-            console.log(`⚠️ WARNING: Bot doesn't have required permissions in guild ${guild.name}`);
+            console.warn(`⚠️ Bot lacks necessary permissions in guild ${guild.name}`);
             continue;
           }
           
@@ -121,7 +128,7 @@ export class DiscordService {
             );
             
             if (member) {
-              console.log(`✅ Found user ${username} in guild ${guild.name}`);
+              console.log(`✅ Found user ${username} in guild ${guild.name} (ID: ${guild.id})`);
               return member;
             }
 
@@ -134,13 +141,17 @@ export class DiscordService {
             );
             
             if (memberByDisplayName) {
-              console.log(`✅ Found user with display name ${username} in guild ${guild.name}`);
+              console.log(`✅ Found user with display name ${username} in guild ${guild.name} (ID: ${guild.id})`);
               return memberByDisplayName;
             }
             
             console.log(`❌ No match found in guild ${guild.name}`);
           } catch (err) {
             console.warn(`⚠️ Could not fetch all members for guild ${guild.name}:`, err);
+            
+            // Check if rate limited
+            this.handleRateLimit(err, `fetching members in ${guild.name}`);
+            
             // Try searching by direct username if mass fetching failed
             try {
               console.log(`Trying direct search in ${guild.name}`);
@@ -158,10 +169,16 @@ export class DiscordService {
               console.log(`❌ No match found via direct search in ${guild.name}`);
             } catch (searchErr) {
               console.warn(`⚠️ Direct search failed in ${guild.name}:`, searchErr);
+              
+              // Check if rate limited
+              this.handleRateLimit(searchErr, 'direct search');
             }
           }
         } catch (err) {
           console.warn(`⚠️ Error fetching guild data:`, err);
+          
+          // Check if rate limited
+          this.handleRateLimit(err, 'fetching guild data');
         }
       }
       
@@ -203,6 +220,10 @@ export class DiscordService {
           };
         } catch (e) {
           console.log(`Failed to fetch user with ID ${username}:`, e);
+          
+          // Check if rate limited
+          this.handleRateLimit(e, 'fetching user by ID');
+          
           return null;
         }
       }
@@ -222,11 +243,31 @@ export class DiscordService {
         return null;
       } catch (e) {
         console.error('Error in direct search:', e);
+        
+        // Check if rate limited
+        this.handleRateLimit(e, 'direct API search');
+        
         return null;
       }
     } catch (error) {
       console.error('Error in searchUserDirectly:', error);
+      
+      // Check if rate limited
+      this.handleRateLimit(error, 'searchUserDirectly');
+      
       return null;
+    }
+  }
+
+  /**
+   * Check if the error is a rate limit error and handle it consistently
+   * @param error Error object to check
+   * @param context Context where the error occurred for logging
+   */
+  private handleRateLimit(error: any, context: string): void {
+    if (error instanceof DiscordAPIError && error.status === 429) {
+      console.error(`❌ Discord Rate Limit Hit during ${context}:`, error);
+      throw new Error('Discord API rate limit exceeded. Please try again later.');
     }
   }
 } 
