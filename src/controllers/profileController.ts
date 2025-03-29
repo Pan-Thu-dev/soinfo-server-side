@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { DiscordService } from '../services/discordService';
-import { DiscordProfileResponse } from '../types/discord';
+import { DiscordProfileResponse } from '../types/discord-types';
 
 /**
  * @desc    Get Discord profile information by username
@@ -60,10 +60,20 @@ export const getDiscordProfile = async (
       return res.status(200).json(response);
     } catch (serviceError) {
       console.error('❌ Discord service error:', serviceError);
+      const message = serviceError instanceof Error ? serviceError.message : 'Unknown error';
+      
+      // Check for rate limit error
+      if (message.includes('rate limit exceeded')) {
+        return res.status(429).json({
+          status: 'error',
+          message: 'Rate limit exceeded. Please try again later.',
+        });
+      }
+      
       return res.status(500).json({
         status: 'error',
         message: 'Error connecting to Discord API',
-        error: serviceError instanceof Error ? serviceError.message : 'Unknown error'
+        error: message
       });
     }
   } catch (error) {
