@@ -1,25 +1,15 @@
-import { Client, GatewayIntentBits, GuildMember, REST, Routes } from 'discord.js';
-import { DiscordUserData } from '../types/discord';
+import { Client, GatewayIntentBits, GuildMember, REST, Routes, DiscordAPIError } from 'discord.js';
+import { DiscordUserData } from '../types/discord-types';
 import config from '../config';
+import { getDiscordClient } from './discordClient';
 
 /**
  * Service for fetching Discord user data
  */
 export class DiscordService {
-  private client: Client;
   private rest: REST;
 
   constructor() {
-    // Initialize Discord client with necessary intents
-    this.client = new Client({
-      intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildPresences,
-        GatewayIntentBits.GuildMessages,
-      ]
-    });
-
     this.rest = new REST({ version: '10' }).setToken(config.discord.botToken || '');
   }
 
@@ -35,32 +25,23 @@ export class DiscordService {
     }
 
     try {
-      // Login to Discord
       if (!config.discord.botToken) {
         throw new Error('Discord bot token is not configured');
       }
       
-      await this.client.login(config.discord.botToken);
-      
-      // Wait for client to be ready
-      await new Promise<void>((resolve) => {
-        if (this.client.isReady()) {
-          resolve();
-        } else {
-          this.client.once('ready', () => resolve());
-        }
-      });
+      // Get the shared client instance
+      const client = await getDiscordClient();
 
       console.log('Discord client is ready, searching for user:', username);
 
       // Find the user by username
-      const member = await this.findUserByUsername(username);
+      const member = await this.findUserByUsername(username, client);
       
       if (!member) {
         console.log('User not found via guild search, attempting direct search');
         // Try a direct user search as fallback
         try {
-          const user = await this.searchUserDirectly(username);
+          const user = await this.searchUserDirectly(username, client);
           if (user) {
             console.log('Found user via direct search:', user.username);
             // Return limited data since we don't have guild context
@@ -74,6 +55,9 @@ export class DiscordService {
           }
         } catch (err) {
           console.error('Direct user search failed:', err);
+          
+          // Check if the error is a rate limit
+          this.handleRateLimit(err, 'direct search');
         }
         return null;
       }
@@ -93,21 +77,23 @@ export class DiscordService {
       return userData;
     } catch (error) {
       console.error('Error fetching Discord user data:', error);
+      
+      // Check for rate limiting
+      this.handleRateLimit(error, 'fetching user data');
+      
       throw error;
-    } finally {
-      // Always destroy the client to avoid memory leaks
-      this.client.destroy();
     }
   }
 
   /**
    * Find a user by username across all available guilds
    * @param username Username to search for
+   * @param client Discord client instance
    * @returns GuildMember object or null if not found
    */
-  private async findUserByUsername(username: string): Promise<GuildMember | null> {
+  private async findUserByUsername(username: string, client: Client): Promise<GuildMember | null> {
     try {
-      const guilds = await this.client.guilds.fetch();
+      const guilds = await client.guilds.fetch();
       console.log(`Bot has access to ${guilds.size} guilds`);
       
       if (guilds.size === 0) {
@@ -125,7 +111,7 @@ export class DiscordService {
           // Check if the bot has permission to view guild members
           if (!guild.members.me?.permissions.has('ViewChannel') ||
               !guild.members.me?.permissions.has('ReadMessageHistory')) {
-            console.log(`⚠️ WARNING: Bot doesn't have required permissions in guild ${guild.name}`);
+            console.warn(`⚠️ Bot lacks necessary permissions in guild ${guild.name}`);
             continue;
           }
           
@@ -142,7 +128,7 @@ export class DiscordService {
             );
             
             if (member) {
-              console.log(`✅ Found user ${username} in guild ${guild.name}`);
+              console.log(`✅ Found user ${username} in guild ${guild.name} (ID: ${guild.id})`);
               return member;
             }
 
@@ -155,13 +141,17 @@ export class DiscordService {
             );
             
             if (memberByDisplayName) {
-              console.log(`✅ Found user with display name ${username} in guild ${guild.name}`);
+              console.log(`✅ Found user with display name ${username} in guild ${guild.name} (ID: ${guild.id})`);
               return memberByDisplayName;
             }
             
             console.log(`❌ No match found in guild ${guild.name}`);
           } catch (err) {
             console.warn(`⚠️ Could not fetch all members for guild ${guild.name}:`, err);
+            
+            // Check if rate limited
+            this.handleRateLimit(err, `fetching members in ${guild.name}`);
+            
             // Try searching by direct username if mass fetching failed
             try {
               console.log(`Trying direct search in ${guild.name}`);
@@ -179,10 +169,16 @@ export class DiscordService {
               console.log(`❌ No match found via direct search in ${guild.name}`);
             } catch (searchErr) {
               console.warn(`⚠️ Direct search failed in ${guild.name}:`, searchErr);
+              
+              // Check if rate limited
+              this.handleRateLimit(searchErr, 'direct search');
             }
           }
         } catch (err) {
           console.warn(`⚠️ Error fetching guild data:`, err);
+          
+          // Check if rate limited
+          this.handleRateLimit(err, 'fetching guild data');
         }
       }
       
@@ -198,12 +194,13 @@ export class DiscordService {
    * Search for a user directly using Discord API
    * This is a fallback method when guild search fails
    * @param username Username to search
+   * @param client Discord client instance
    * @returns User object or null
    */
-  private async searchUserDirectly(username: string): Promise<any | null> {
+  private async searchUserDirectly(username: string, client: Client): Promise<any | null> {
     try {
       // Get the bot's user id first
-      const botUser = this.client.user;
+      const botUser = client.user;
       if (!botUser) {
         throw new Error("Bot user not available");
       }
@@ -214,7 +211,7 @@ export class DiscordService {
       if (isSnowflake) {
         try {
           // Try to fetch by ID
-          const user = await this.client.users.fetch(username);
+          const user = await client.users.fetch(username);
           return {
             id: user.id,
             username: user.username,
@@ -223,6 +220,10 @@ export class DiscordService {
           };
         } catch (e) {
           console.log(`Failed to fetch user with ID ${username}:`, e);
+          
+          // Check if rate limited
+          this.handleRateLimit(e, 'fetching user by ID');
+          
           return null;
         }
       }
@@ -242,11 +243,31 @@ export class DiscordService {
         return null;
       } catch (e) {
         console.error('Error in direct search:', e);
+        
+        // Check if rate limited
+        this.handleRateLimit(e, 'direct API search');
+        
         return null;
       }
     } catch (error) {
       console.error('Error in searchUserDirectly:', error);
+      
+      // Check if rate limited
+      this.handleRateLimit(error, 'searchUserDirectly');
+      
       return null;
+    }
+  }
+
+  /**
+   * Check if the error is a rate limit error and handle it consistently
+   * @param error Error object to check
+   * @param context Context where the error occurred for logging
+   */
+  private handleRateLimit(error: any, context: string): void {
+    if (error instanceof DiscordAPIError && error.status === 429) {
+      console.error(`❌ Discord Rate Limit Hit during ${context}:`, error);
+      throw new Error('Discord API rate limit exceeded. Please try again later.');
     }
   }
 } 
