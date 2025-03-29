@@ -9,6 +9,7 @@ import profileRoutes from './routes/profileRoutes';
 import guildRoutes from './routes/guildRoutes';
 import userRoutes from './routes/userRoutes';
 import config from './config';
+import { DiscordService } from './services/discordService';
 
 // Load environment variables
 dotenv.config();

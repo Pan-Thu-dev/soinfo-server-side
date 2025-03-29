@@ -14,6 +14,15 @@ export class DiscordService {
   }
 
   /**
+   * Gracefully shutdown the service
+   */
+  public async shutdown(): Promise<void> {
+    console.log('Shutting down Discord service...');
+    // Nothing specific to clean up in this service
+    return Promise.resolve();
+  }
+
+  /**
    * Fetch user data from Discord by username
    * @param username Discord username to search for
    * @returns Discord user data or null if not found
